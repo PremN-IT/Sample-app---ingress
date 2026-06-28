@@ -76,8 +76,7 @@ jobs:
 
     needs:
       - build
-      - lint
-
+      
     runs-on: ubuntu-latest
 
     steps:
