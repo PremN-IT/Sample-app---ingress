@@ -1,0 +1,89 @@
+# CI for Product Catalog Service
+
+name: product-catalog-ci
+
+on:
+    push: 
+        branches:
+        - main
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout-code
+              uses: actions/checkout@v4
+            - name: setup Go 1.22
+              uses: actions/setup-go@v2
+              with:
+                go-version: 1.22
+            - name: Build
+              run: go build -o product-catalog-service src/product-catalog/main.go
+
+            - name: unit tests
+              run: go test src/product-catalog/..
+
+    code-quality:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout-code
+              uses: actions/checkout@v4
+
+            - name: Run golangci-lint
+              run:
+                      go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.2
+                      golangci-lint run src/product-catalog/..
+    docker:
+        runs-on: ubuntu-latest
+
+        needs: build
+        steps:
+          - name: checkout-code
+            uses: actions/checkout@v4
+          - name: Install Docker
+            uses: docker/setup-buildx-action@v1
+          - name: Login to Docker
+            uses: docker/login-action@v3
+            with:
+                username: ${{ secrets.DOCKER_USERNAME }}
+                password: ${{ secrets.DOCKER_TOKEN }}
+          - name: Docker Push
+            uses: docker/build-push-action@v6
+            with:
+              context: src/product-catalog
+              file: Dockerfile
+              push: true
+              tags: ${{ secrets.DOCKERHUB-USERNAME }}/product-catalog-service:${{github.run_id}}
+
+    Updatek8s:
+        runs-on: ubuntu-latest
+        needs: docker
+        steps:
+          - name: checkout-code
+            uses: actions/checkout@v4
+            with: ${{ secrets.GitHub_TOKEN }}
+          - name: Update tag in Kubernetes deployment manifest
+            run: |
+                 sed -i 's/tag: .*/tag: "${{github.run_id}}"/' kubernetes/productcatalog/deploy.yaml
+    
+          - name: Configure AWS Credentials
+            uses: aws-actions/configure-aws-credentials@v4
+            with:
+            role-to-assume: arn:aws:iam::900840136277:role/GitHub-OIDC-role
+            aws-region: us-east-1
+
+          - name: Update kubeconfig
+            run: |
+              aws eks update-kubeconfig \
+                --name my-eks-cluster \
+                --region us-east-1
+
+          - name: Deploy to EKS
+            run: |
+              kubectl apply -f k8s/frontend-proxy/ingress.yaml
+              kubectl apply -f k8s/frontend-proxy/deployment.yaml
+              kubectl apply -f k8s/frontend-proxy/service.yaml                  
+              
+    

@@ -1,0 +1,53 @@
+# k8s/frontend-proxy/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-proxy-ingress
+  namespace: default
+  annotations:
+    # AWS Load Balancer Controller (already in your EKS cluster)
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+
+    # Share ONE ALB across all your services (cost saving)
+    alb.ingress.kubernetes.io/group.name: production-alb
+
+    # HTTP → HTTPS redirect
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80,"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+
+    # Your ACM certificate (get from AWS Console → Certificate Manager)
+    # If no domain yet, remove this line and use HTTP for testing
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:900840136277:certificate/YOUR-CERT-ID
+
+    # Health check for the frontend proxy
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+
+spec:
+  ingressClassName: alb
+  rules:
+    # Option 1: With a domain
+    # - host: shop.your-domain.com
+    #   http:
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         backend:
+    #           service:
+    #             name: frontend-proxy
+    #             port:
+    #               number: 8080
+
+    # Option 2: No domain yet (uses ALB DNS directly)
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend-proxy
+                port:
+                  number: 8080
