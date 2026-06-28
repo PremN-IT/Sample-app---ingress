@@ -7,6 +7,10 @@ on:
         branches:
         - main
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
     build:
         runs-on: ubuntu-latest
@@ -22,7 +26,7 @@ jobs:
               run: go build -o product-catalog-service src/product-catalog/main.go
 
             - name: unit tests
-              run: go test src/product-catalog/..
+              run: go test ./src/product-catalog/.
 
     code-quality:
         runs-on: ubuntu-latest
@@ -33,8 +37,8 @@ jobs:
 
             - name: Run golangci-lint
               run:
-                      go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.2
-                      golangci-lint run src/product-catalog/..
+                  go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.56.2
+                  golangci-lint run ./src/product-catalog/..
     docker:
         runs-on: ubuntu-latest
 
@@ -63,7 +67,6 @@ jobs:
         steps:
           - name: checkout-code
             uses: actions/checkout@v4
-            with: ${{ secrets.GitHub_TOKEN }}
           - name: Update tag in Kubernetes deployment manifest
             run: |
                  sed -i 's/tag: .*/tag: "${{github.run_id}}"/' kubernetes/productcatalog/deploy.yaml
@@ -71,8 +74,8 @@ jobs:
           - name: Configure AWS Credentials
             uses: aws-actions/configure-aws-credentials@v4
             with:
-            role-to-assume: arn:aws:iam::900840136277:role/GitHub-OIDC-role
-            aws-region: us-east-1
+              role-to-assume: arn:aws:iam::900840136277:role/GitHub-OIDC-role
+              aws-region: us-east-1
 
           - name: Update kubeconfig
             run: |
@@ -82,8 +85,7 @@ jobs:
 
           - name: Deploy to EKS
             run: |
-              kubectl apply -f k8s/frontend-proxy/ingress.yaml
-              kubectl apply -f k8s/frontend-proxy/deployment.yaml
-              kubectl apply -f k8s/frontend-proxy/service.yaml                  
+              kubectl apply -f k8s/product-catalog/deployment.yaml
+              kubectl apply -f k8s/product-catalog/service.yaml                  
               
     
